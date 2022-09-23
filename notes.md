@@ -1,5 +1,7 @@
 ## Архитектура popug
 
+https://lucid.app/lucidchart/01bcd166-aacd-4aa3-bb66-bec8eda744b6/edit?viewport_loc=-135%2C205%2C2638%2C1262%2C0_0&invitationId=inv_e21d7c12-4d7f-404b-94db-145f85ab5f76#
+
 ### Сервисы
 
 * `Auth` - отвечает за авторизацию пользователей, получение информации о пользователях другими сервисами.
