@@ -27,6 +27,43 @@ https://drive.google.com/file/d/1P6Tc_FIp3JULfNStSmEFDSRmA7VVQ5-G/view?usp=shari
 
 ### Бизнес события:
 `TaskAssigned`, `TaskCompleted` - таск трекер продьюсер, аналитика и аккаунтинг консьюмеры.
+* `TaskAssigned`
+```json
+{
+  "id": "id", // для дедупликации
+  "taskId": "id",
+  "userId": "id",
+  "fee": 50,
+  "timestamp": 3891308
+}
+```
+
+`TaskCompleted`
+```json
+{
+  "id": "id", // для дедупликации
+  "taskId": "id",
+  "userId": "id",
+  "fee": 50,
+  "timestamp": 3891308
+}
+```
 
 ### CUD события
 `UserCreated`, `UserModified` - продьюсер auth, консьюмеры - все остальные пользователи
+
+* `UserCreated`
+```json
+{
+  "id": "id",
+  "role": "Manager"
+}
+```
+
+* `UserModified`
+```json
+{
+  "id": "id",
+  "role": "Admin"
+}
+```
