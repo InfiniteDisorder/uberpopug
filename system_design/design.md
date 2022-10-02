@@ -23,3 +23,10 @@ https://drive.google.com/file/d/1P6Tc_FIp3JULfNStSmEFDSRmA7VVQ5-G/view?usp=shari
 происходят в этом сервисе.
 
 `Anaylytics` - сервис аналитики. Query сервис для лога изменений заданий.
+
+
+### Бизнес события:
+`TaskAssigned`, `TaskCompleted` - таск трекер продьюсер, аналитика и аккаунтинг консьюмеры.
+
+### CUD события
+`UserCreated`, `UserModified` - продьюсер auth, консьюмеры - все остальные пользователи
