@@ -49,13 +49,30 @@ lazy val tapirDeps = Seq(
   "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % Version.tapir
 )
 
-
 libraryDependencies ++=
   (scalaDeps ++
     catsDeps ++
     circeDeps ++
     http4sDeps ++
     tapirDeps) ++
-    Seq("com.github.fd4s" %% "fs2-kafka" % "2.5.0-M3",
-      "com.typesafe.slick" %% "slick" % "3.4.0",
-      "org.slf4j" % "slf4j-nop" % "1.6.4")
+    Seq(
+      "com.github.fd4s" %% "fs2-kafka" % "2.5.0-M3",
+      "org.tpolecat" %% "doobie-core" % "1.0.0-RC2",
+      "org.tpolecat" %% "doobie-postgres" % "1.0.0-RC2",
+      "org.slf4j" % "slf4j-nop" % "1.6.4"
+    )
+
+scalacOptions ++= Seq(
+  "-Xfatal-warnings",
+  "-unchecked",
+  "-feature",
+  "-deprecation",
+  "-explaintypes",
+  "-language:postfixOps",
+  "-language:higherKinds",
+  "-language:implicitConversions",
+  "-language:reflectiveCalls",
+  "-language:existentials",
+  "-Ymacro-annotations",
+  "-Ywarn-extra-implicit"
+)
