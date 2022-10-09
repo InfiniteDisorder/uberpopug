@@ -73,6 +73,5 @@ scalacOptions ++= Seq(
   "-language:implicitConversions",
   "-language:reflectiveCalls",
   "-language:existentials",
-  "-Ymacro-annotations",
-  "-Ywarn-extra-implicit"
+  "-Ymacro-annotations"
 )
