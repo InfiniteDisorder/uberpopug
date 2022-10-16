@@ -1,7 +1,8 @@
 package auth
 
 import auth.UserRepositoryController.{ChangeRoleError, SignInError, SignupError}
-import auth.model.events.{RoleChanged, UserCreated}
+import auth.model.events.streaming.UserStreaming
+import auth.model.events.UserSignedUp
 import auth.model.{PublicId, User, roles}
 import cats.data.{EitherT, OptionT}
 import cats.effect.IO
@@ -35,8 +36,8 @@ trait UserRepositoryController[F[_]] {
 object UserRepositoryController {
 
   class PostgresImpl(
-      userCreatedEP: KafkaEventProducer[UserCreated],
-      roleChangedEP: KafkaEventProducer[RoleChanged]
+      userCreatedEP: KafkaEventProducer[UserSignedUp],
+      userStreamingEP: KafkaEventProducer[UserStreaming]
   ) extends UserRepositoryController[IO] {
 
     val xa = Transactor.fromDriverManager[IO](
@@ -93,7 +94,7 @@ object UserRepositoryController {
         .semiflatMap(_ => dbInsert)
         .semiflatMap(_ =>
           userCreatedEP
-            .send(List(UserCreated(public_id, name, "USER")))
+            .send(List(UserSignedUp(public_id, name, "USER")))
             .as(public_id)
         )
     }
@@ -101,26 +102,30 @@ object UserRepositoryController {
     override def changeRole(public_id: PublicId, role: String)(
         user: User
     ): EitherT[IO, ChangeRoleError.type, Unit] = {
-      if (
-        roles.all.contains(
-          role
-        ) && (user.role == roles.Manager || user.role == roles.Admin)
-      ) {
+      val r =
+        if (
+          roles.all.contains(
+            role
+          ) && (user.role == roles.Manager || user.role == roles.Admin)
+        ) {
 
-        val dpUpdate =
-          sql"""update users set role = $role where public_id = $public_id""".update.run
-            .transact(xa)
+          val dpUpdate =
+            sql"""update users set role = $role where public_id = $public_id""".update.run
+              .transact(xa)
 
-        val res = for {
-          _ <- dpUpdate
-          _ <- roleChangedEP.send(List(RoleChanged(public_id, role)))
-        } yield ()
+          EitherT.liftF(dpUpdate)
+        } else {
+          EitherT.fromEither[IO](ChangeRoleError.asLeft)
+        }
 
-        EitherT.liftF(res)
-      } else {
-        EitherT.fromEither(ChangeRoleError.asLeft)
-      }
-
+      for {
+        _ <- r
+        user <- EitherT.fromOptionF(get(public_id).value, ChangeRoleError)
+        streaming = userStreamingEP.send(
+          List(UserStreaming(public_id, user.name, user.email, user.role))
+        )
+        _ <- EitherT.liftF(streaming)
+      } yield ()
     }
 
     override def get(public_id: PublicId): OptionT[IO, User] = {

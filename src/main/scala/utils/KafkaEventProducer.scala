@@ -1,20 +1,11 @@
 package utils
 
 import cats.effect.IO
-import fs2.kafka.{
-  Acks,
-  KafkaProducer,
-  ProducerRecord,
-  ProducerRecords,
-  ProducerSettings
-}
-import io.circe.Encoder
 import cats.syntax.traverse._
-import io.circe.syntax._
+import fs2.kafka._
+import utils.syntax.codec._
 
-import java.nio.charset.StandardCharsets
-
-class KafkaEventProducer[T: Encoder](topic: String)
+class KafkaEventProducer[T: BinaryEncoder](topic: String)
     extends EventProducer[IO, T] {
 
   def send(events: List[T]): IO[Unit] =
@@ -28,7 +19,7 @@ class KafkaEventProducer[T: Encoder](topic: String)
                 ProducerRecord(
                   topic,
                   (),
-                  e.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)
+                  e.bytes
                 )
               )
             )

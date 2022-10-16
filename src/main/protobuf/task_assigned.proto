@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package uberpopug.proto;
+
+import "model.proto";
+
+message TaskAssignedV1 {
+  string public_id = 1;
+  string assignee_id = 2;
+  int64 at = 3;
+}

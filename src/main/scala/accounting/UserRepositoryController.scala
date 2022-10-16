@@ -1,27 +1,25 @@
-package tasks
+package accounting
 
+import accounting.UserRepositoryController.ChangeRoleError
+import accounting.model.User
 import auth.model.roles
 import cats.data.{EitherT, OptionT}
 import cats.effect.IO
-import tasks.model.User
+import doobie.Transactor
+import cats.syntax.either._
 import doobie._
 import doobie.implicits._
-import cats.syntax.either._
-import tasks.UserRepositoryController.ChangeRoleError
 
 trait UserRepositoryController[F[_]] {
   def get(public_id: String): OptionT[F, User]
-
-  def getRandom(): OptionT[F, User]
-
   def create(public_id: String, name: String, role: String): F[Unit]
-
   def update(
       public_id: String,
       name: String,
       email: String,
       role: String
   ): EitherT[F, ChangeRoleError.type, Unit]
+
 }
 
 object UserRepositoryController {
@@ -40,25 +38,14 @@ object UserRepositoryController {
         role: String
     ): IO[Unit] = {
 
-      sql"""insert into users (public_id, name, role) 
-              values ($public_id, $name, $role::role)
+      sql"""insert into users (public_id, name, role, balance)
+              values ($public_id, $name, $role::role, 0)
            """.update.run.transact(xa).void
-    }
-
-    override def getRandom(): OptionT[IO, User] = {
-      val r =
-        sql"""select public_id, name, role from users where role = 'USER' order by random() limit 1"""
-          .query[User]
-          .to[List]
-          .transact(xa)
-          .map(_.headOption)
-
-      OptionT(r)
     }
 
     override def get(public_id: String): OptionT[IO, User] = {
       val r =
-        sql"""select public_id, name, role from users where public_id = $public_id"""
+        sql"""select id, public_id, name, role from users where public_id = $public_id"""
           .query[User]
           .to[List]
           .transact(xa)

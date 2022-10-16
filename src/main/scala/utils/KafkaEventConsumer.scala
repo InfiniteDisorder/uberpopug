@@ -9,14 +9,15 @@ import fs2.kafka.{
   ConsumerSettings,
   KafkaConsumer
 }
-import io.circe.Decoder
-import io.circe.parser.parse
 import utils.KafkaEventConsumer._
+import utils.syntax.codec._
 
-import java.nio.charset.StandardCharsets
 import scala.concurrent.duration._
 
-abstract class KafkaEventConsumer[T: Decoder](topic: String, groupId: String) {
+abstract class KafkaEventConsumer[T: BinaryDecoder](
+    topic: String,
+    groupId: String
+) {
 
   def f: T => IO[Unit]
 
@@ -38,8 +39,7 @@ abstract class KafkaEventConsumer[T: Decoder](topic: String, groupId: String) {
           .leftMap(_ => kr)
       }
       .evalMap[IO, Unit] {
-        case Left(kr) =>
-          println("FAILED")
+        case Left(_) =>
           IO.raiseError(new Error("consumer failed"))
 
         case Right(r) =>
@@ -47,9 +47,7 @@ abstract class KafkaEventConsumer[T: Decoder](topic: String, groupId: String) {
             .handleErrorWith(e =>
               IO.delay(println(e.fillInStackTrace())) >> IO.raiseError(e)
             )
-            .map(_ => r.asRight) >> r.kr.offset.commit >> IO.delay(
-            println("COMMITTED")
-          )
+            .map(_ => r.asRight) >> r.kr.offset.commit
       }
 
   private lazy val consumerSettings = ConsumerSettings[IO, Unit, Array[Byte]]
@@ -63,9 +61,7 @@ abstract class KafkaEventConsumer[T: Decoder](topic: String, groupId: String) {
     .withEnableAutoCommit(false)
 
   def parseRecord(bytes: Array[Byte]): Either[Throwable, T] =
-    parse(new String(bytes, StandardCharsets.UTF_8))
-      .flatMap(_.as[T])
-      .leftMap(_.fillInStackTrace())
+    bytes.as[T].asRight
 
 }
 

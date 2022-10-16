@@ -1,8 +1,13 @@
 name := "uberpopug"
 
 version := "0.1"
-
 scalaVersion := "2.13.9"
+
+lazy val sonatypeSnapshots =
+  "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
+lazy val sonatypeReleases =
+  "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/"
+lazy val defaultResolvers = Seq(sonatypeSnapshots, sonatypeReleases)
 
 lazy val Version = new {
   val scala = "2.13.9"
@@ -49,6 +54,10 @@ lazy val tapirDeps = Seq(
   "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % Version.tapir
 )
 
+Compile / PB.targets := Seq(
+  scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+)
+
 libraryDependencies ++=
   (scalaDeps ++
     catsDeps ++
@@ -59,7 +68,11 @@ libraryDependencies ++=
       "com.github.fd4s" %% "fs2-kafka" % "2.5.0-M3",
       "org.tpolecat" %% "doobie-core" % "1.0.0-RC2",
       "org.tpolecat" %% "doobie-postgres" % "1.0.0-RC2",
-      "org.slf4j" % "slf4j-nop" % "1.6.4"
+      "io.scalaland" %% "chimney" % "0.6.1",
+      "org.slf4j" % "slf4j-nop" % "1.6.4",
+      "org.quartz-scheduler" % "quartz" % "2.3.2",
+      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
+      "com.outr" %% "hasher" % "1.2.2"
     )
 
 scalacOptions ++= Seq(
