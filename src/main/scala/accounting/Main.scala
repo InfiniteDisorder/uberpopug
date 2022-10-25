@@ -1,8 +1,10 @@
 package accounting
 
+import accounting.model.events.DailyRewardPaid
 import cats.effect.IO.delay
 import cats.effect.{ExitCode, IO, IOApp, Resource}
 import org.http4s.blaze.server.BlazeServerBuilder
+import utils.KafkaEventProducer
 
 import java.util.concurrent.ForkJoinPool
 import scala.concurrent.ExecutionContext
@@ -31,7 +33,14 @@ object Main extends IOApp {
     val taskAssignedEventConsumer = new TaskAssignedEventConsumer(trc)
     val taskCompletedEventConsumer = new TaskCompletedEventConsumer(trc)
 
-    val consumersT = for {
+    val dailyRewardPaidProducer = new KafkaEventProducer[DailyRewardPaid](
+      "uberpopug.accounting.daily-reward-paid"
+    )
+
+    val paymentScheduler = new PaymentScheduler(dailyRewardPaidProducer)
+
+    val T = for {
+      _ <- paymentScheduler.start
       _ <- userSignedUpEventConsumer.start
       _ <- userStreamingEventConsumer.start
       _ <- taskStreamingEventConsumer.start
@@ -39,7 +48,7 @@ object Main extends IOApp {
       _ <- taskCompletedEventConsumer.start
     } yield ()
 
-    consumersT.flatMap { _ =>
+    T.flatMap { _ =>
       BlazeServerBuilder
         .apply[IO](ec)
         .bindHttp(9093, "localhost")

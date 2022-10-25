@@ -18,7 +18,7 @@ import utils.KafkaEventProducer
 import java.util.{Date, UUID}
 
 trait TaskRepositoryController[F[_]] {
-  def create(name: String, description: String)(
+  def create(name: String, description: String, jira_id: String)(
       user: User
   ): EitherT[F, CreateTaskError.type, Task]
 
@@ -47,7 +47,7 @@ object TaskRepositoryController {
       "pass"
     )
 
-    override def create(name: String, description: String)(
+    override def create(name: String, description: String, jira_id: String)(
         user: User
     ): EitherT[IO, CreateTaskError.type, Task] = {
 
@@ -56,6 +56,7 @@ object TaskRepositoryController {
         name = name,
         description = description,
         assignee_id = assignee_id,
+        jira_id = jira_id,
         created_by_id = user.public_id,
         created_at = new Date(),
         completed = false
@@ -65,8 +66,8 @@ object TaskRepositoryController {
         user <- EitherT.fromOptionF(urc.getRandom().value, CreateTaskError)
         task = assignedTask(user.public_id)
         insert =
-          sql"""insert into tasks (public_id, name, description, assignee_id, created_by_id, created_at, completed) 
-              values (${task.public_id}, ${task.name}, ${task.description}, ${task.assignee_id}, 
+          sql"""insert into tasks (public_id, name, jira_id, description, assignee_id, created_by_id, created_at, completed) 
+              values (${task.public_id}, ${task.name}, ${task.jira_id}, ${task.description}, ${task.assignee_id}, 
               ${task.created_by_id}, ${task.created_at}, ${task.completed})
            """.update.run.transact(xa)
         _ <- EitherT.liftF(insert)
@@ -75,6 +76,7 @@ object TaskRepositoryController {
             TaskStreaming(
               task.public_id,
               task.name,
+              task.jira_id,
               task.assignee_id,
               new Date()
             )

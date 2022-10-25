@@ -18,6 +18,7 @@ package object model {
   case class Task(
       public_id: String,
       name: String,
+      jira_id: String,
       description: String,
       assignee_id: String,
       created_by_id: String,
