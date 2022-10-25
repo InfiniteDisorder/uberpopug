@@ -20,6 +20,7 @@ package object model {
       id: Int,
       public_id: String,
       name: String,
+      jira_id: String,
       assign_fee: Int,
       complete_reward: Int,
       assignee_id: String

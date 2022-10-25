@@ -18,6 +18,7 @@ trait TaskRepositoryController[F[_]] {
   def create(
       id: String,
       name: String,
+      jira_id: String,
       assignee_id: String
   ): EitherT[F, CreateTaskError.type, Unit]
 
@@ -46,6 +47,7 @@ object TaskRepositoryController {
     override def create(
         public_id: String,
         name: String,
+        jira_id: String,
         assignee_id: String
     ): EitherT[IO, CreateTaskError.type, Unit] = {
 
@@ -54,8 +56,8 @@ object TaskRepositoryController {
       val reward = rnd.nextInt(20) + 21
 
       val tasksT = sql"""
-           insert into tasks (public_id, name, assign_fee, complete_reward, assignee_id) values
-            ($public_id, $name, $fee, $reward, $assignee_id)
+           insert into tasks (public_id, name, jira_id, assign_fee, complete_reward, assignee_id) values
+            ($public_id, $name, $jira_id, $fee, $reward, $assignee_id)
          """.update.run
 
       val t = Transaction(
@@ -67,17 +69,25 @@ object TaskRepositoryController {
         new Date()
       )
 
+      val billingCycleT =
+        sql"""
+             select id from billing_cycles where status = open
+           """
+          .query[Int]
+          .to[List]
+
       val usersT =
         sql"""update users set balance = balance - $fee where public_id = $assignee_id""".update.run
 
-      val transactionT =
+      def transactionT(bcId: Int) =
         sql"""insert into transactions (id, name, user_id, billing_cycle_id, debit, credit, cat)
-              values (${t.id}, ${t.name}, ${t.user_id}, ${t.billing_cycle_id},
+              values (${t.id}, ${t.name}, ${t.user_id}, $bcId,
               ${t.debit}, ${t.credit}, ${t.cat})
            """.update.run
 
       val res = for {
-        _ <- transactionT
+        bc0 <- billingCycleT.map(_.headOption.get)
+        _ <- transactionT(bc0)
         _ <- tasksT
         _ <- usersT
       } yield ()
@@ -104,11 +114,12 @@ object TaskRepositoryController {
           new Date()
         )
 
-        transactionT =
-          sql"""insert into transactions (id, name, user_id, billing_cycle_id, debit, credit, cat)
-              values (${t.id}, ${t.name}, ${t.user_id}, ${t.billing_cycle_id},
-              ${t.debit}, ${t.credit}, ${t.cat})
-           """.update.run
+        bc =
+          sql"""
+             select id from billing_cycles where status = open
+           """
+            .query[Int]
+            .to[List]
 
         usersT =
           sql"""
@@ -116,7 +127,11 @@ object TaskRepositoryController {
              """.update.run
 
         action = for {
-          _ <- transactionT
+          bc0 <- bc.map(_.headOption.get)
+          _ <- sql"""insert into transactions (id, name, user_id, billing_cycle_id, debit, credit, cat)
+              values (${t.id}, ${t.name}, ${t.user_id}, $bc0,
+              ${t.debit}, ${t.credit}, ${t.cat})
+           """.update.run
           _ <- usersT
         } yield ()
 
@@ -146,11 +161,12 @@ object TaskRepositoryController {
             new Date()
           )
 
-          val transactionT =
-            sql"""insert into transactions (id, name, user_id, billing_cycle_id, debit, credit, cat)
-              values (${t.id}, ${t.name}, ${t.user_id}, ${t.billing_cycle_id},
-              ${t.debit}, ${t.credit}, ${t.cat})
-           """.update.run
+          val bc =
+            sql"""
+             select id from billing_cycles where status = open
+           """
+              .query[Int]
+              .to[List]
 
           val usersT =
             sql"""
@@ -158,8 +174,12 @@ object TaskRepositoryController {
                """.update.run
 
           val res = for {
+            bc0 <- bc.map(_.headOption.get)
             _ <- tasksT
-            _ <- transactionT
+            _ <- sql"""insert into transactions (id, name, user_id, billing_cycle_id, debit, credit, cat)
+              values (${t.id}, ${t.name}, ${t.user_id}, $bc0,
+              ${t.debit}, ${t.credit}, ${t.cat})
+           """.update.run
             _ <- usersT
           } yield ()
 

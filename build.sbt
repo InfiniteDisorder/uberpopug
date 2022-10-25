@@ -72,7 +72,8 @@ libraryDependencies ++=
       "org.slf4j" % "slf4j-nop" % "1.6.4",
       "org.quartz-scheduler" % "quartz" % "2.3.2",
       "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-      "com.outr" %% "hasher" % "1.2.2"
+      "com.outr" %% "hasher" % "1.2.2",
+      "org.quartz-scheduler" % "quartz" % "2.3.2"
     )
 
 scalacOptions ++= Seq(

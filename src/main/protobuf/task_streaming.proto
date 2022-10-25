@@ -10,3 +10,11 @@ message TaskStreamingV1 {
   string assignee_id = 3;
   int64 at = 4;
 }
+
+message TaskStreamingV2 {
+  string public_id = 1;
+  string name = 2;
+  string assignee_id = 3;
+  int64 at = 4;
+  string jira_id = 5;
+}

@@ -7,6 +7,7 @@ import io.scalaland.chimney.dsl._
 import uberpopug.proto.task_assigned.TaskAssignedV1
 import uberpopug.proto.task_completed.TaskCompletedV1
 import uberpopug.proto.task_streaming.TaskStreamingV1
+import uberpopug.proto.task_streaming.TaskStreamingV2
 import utils._
 
 object events {
@@ -14,32 +15,52 @@ object events {
   case class TaskStreaming(
       public_id: String,
       name: String,
+      jira_id: String,
       assignee_id: String,
       at: Date
   )
 
   object TaskStreaming {
-
     implicit val be: BinaryEncoder[TaskStreaming] =
       new BinaryEncoder[TaskStreaming] {
         override def encode: TaskStreaming => Array[Byte] = ts =>
-          ts.into[TaskStreamingV1]
+          ts.into[TaskStreamingV2]
             .withFieldComputed(_.publicId, _.public_id)
             .withFieldComputed(_.assigneeId, _.assignee_id)
+            .withFieldComputed(_.jiraId, _.jira_id)
             .transform
             .toByteArray
       }
 
-    implicit val bd: BinaryDecoder[TaskStreaming] =
-      new BinaryDecoder[TaskStreaming] {
-        override def decode: Array[Byte] => TaskStreaming = bytes =>
-          TaskStreamingV1
-            .parseFrom(bytes)
-            .into[TaskStreaming]
-            .withFieldComputed(_.public_id, _.publicId)
-            .withFieldComputed(_.assignee_id, _.assigneeId)
-            .transform
+    implicit val bd: VersionedBinaryDecoder[TaskStreaming] = {
+      new VersionedBinaryDecoder[TaskStreaming] {
+        override def decode: (Int, Array[Byte]) => TaskStreaming =
+          (version, bytes) => {
+
+            version match {
+              case 1 =>
+                TaskStreamingV1
+                  .parseFrom(bytes)
+                  .into[TaskStreaming]
+                  .withFieldComputed(_.public_id, _.publicId)
+                  .withFieldComputed(_.assignee_id, _.assigneeId)
+                  .withFieldConst(_.jira_id, "")
+                  .transform
+
+              case 2 =>
+                TaskStreamingV2
+                  .parseFrom(bytes)
+                  .into[TaskStreaming]
+                  .withFieldComputed(_.public_id, _.publicId)
+                  .withFieldComputed(_.assignee_id, _.assigneeId)
+                  .withFieldComputed(_.jira_id, _.jiraId)
+                  .transform
+
+              case _ => throw new Exception()
+            }
+          }
       }
+    }
   }
 
   case class TaskAssigned(public_id: String, assignee_id: String, at: Date) {}

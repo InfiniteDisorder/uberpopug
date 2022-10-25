@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package uberpopug.proto;
+
+import "model.proto";
+
+message DailyRewardPaidV1 {
+  string transaction_id = 1;
+  string user_id = 2;
+  int64 debit = 3;
+  int64 credit = 4;
+  int64 cat = 5;
+}
