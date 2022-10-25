@@ -1,10 +1,8 @@
-package tasks
+package accounting
 
 import cats.effect.IO.delay
 import cats.effect.{ExitCode, IO, IOApp, Resource}
 import org.http4s.blaze.server.BlazeServerBuilder
-import tasks.model.events.{TaskAssigned, TaskCompleted, TaskStreaming}
-import utils.KafkaEventProducer
 
 import java.util.concurrent.ForkJoinPool
 import scala.concurrent.ExecutionContext
@@ -18,41 +16,33 @@ object Main extends IOApp {
         .fromExecutor(executor)
     }
 
-  val userController = new UserRepositoryController.PostgresImpl()
-
-  val userSignedUpEventConsumer = new UserSignedUpEventConsumer(userController)
-  val userStreamingEventConsumer = new UserStreamingEventConsumer(
-    userController
-  )
-
-  val taskStreamingEp =
-    new KafkaEventProducer[TaskStreaming]("uberpopug.task-streaming")
-  val taskAssignedEp =
-    new KafkaEventProducer[TaskAssigned]("uberpopug.task.assigned")
-  val taskCompletedEp =
-    new KafkaEventProducer[TaskCompleted]("uberpopug.task.completed")
-
-  val taskController = new TaskRepositoryController.PostgresImpl(
-    userController,
-    taskStreamingEp,
-    taskAssignedEp,
-    taskCompletedEp
-  )
+  val urc = new UserRepositoryController.PostgresImpl()
 
   val serverR = for {
     ec <- ecR
-    routes = new Routes(userController, taskController).r
+    routes = new Routes(urc).r
   } yield {
+
+    val userSignedUpEventConsumer = new UserSignedUpEventConsumer(urc)
+    val userStreamingEventConsumer = new UserStreamingEventConsumer(urc)
+
+    val trc = new TaskRepositoryController.PostgresImpl(urc)
+    val taskStreamingEventConsumer = new TaskStreamingEventConsumer(trc)
+    val taskAssignedEventConsumer = new TaskAssignedEventConsumer(trc)
+    val taskCompletedEventConsumer = new TaskCompletedEventConsumer(trc)
 
     val consumersT = for {
       _ <- userSignedUpEventConsumer.start
       _ <- userStreamingEventConsumer.start
+      _ <- taskStreamingEventConsumer.start
+      _ <- taskAssignedEventConsumer.start
+      _ <- taskCompletedEventConsumer.start
     } yield ()
 
     consumersT.flatMap { _ =>
       BlazeServerBuilder
         .apply[IO](ec)
-        .bindHttp(9091, "localhost")
+        .bindHttp(9093, "localhost")
         .withHttpApp(routes.orNotFound)
         .resource
         .use(_ => IO.never)

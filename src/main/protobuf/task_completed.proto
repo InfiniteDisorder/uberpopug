@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package uberpopug.proto;
+
+import "model.proto";
+
+message TaskCompletedV1 {
+  string public_id = 1;
+  int64 at = 3;
+}

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package uberpopug.proto;
+
+import "model.proto";
+
+message TaskStreamingV1 {
+  string public_id = 1;
+  string name = 2;
+  string assignee_id = 3;
+  int64 at = 4;
+}

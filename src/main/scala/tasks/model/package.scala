@@ -9,13 +9,14 @@ import java.util.Date
 package object model {
 
   case class User(
+      id: Int,
       public_id: String,
       name: String,
       role: String
   )
 
   case class Task(
-      id: String,
+      public_id: String,
       name: String,
       description: String,
       assignee_id: String,

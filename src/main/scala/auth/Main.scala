@@ -1,6 +1,7 @@
 package auth
 
-import auth.model.events.{RoleChanged, UserCreated}
+import auth.model.events.streaming.UserStreaming
+import auth.model.events.UserSignedUp
 import cats.effect.IO.delay
 import cats.effect.{ExitCode, IO, IOApp, Resource}
 import org.http4s.blaze.server.BlazeServerBuilder
@@ -18,12 +19,13 @@ object Main extends IOApp {
         .fromExecutor(executor)
     }
 
-  val userCreatedEp =
-    new KafkaEventProducer[UserCreated]("uberpopug.user.created")
-  val roleChangedEp =
-    new KafkaEventProducer[RoleChanged]("uberpopug.user.role-changed")
+  val userSignedUpEP =
+    new KafkaEventProducer[UserSignedUp]("uberpopug.user.signed-up")
+  val userStreamingEP =
+    new KafkaEventProducer[UserStreaming]("uberpopug.user-streaming")
+
   val userController =
-    new UserRepositoryController.PostgresImpl(userCreatedEp, roleChangedEp)
+    new UserRepositoryController.PostgresImpl(userSignedUpEP, userStreamingEP)
 
   val serverR = for {
     ec <- ecR

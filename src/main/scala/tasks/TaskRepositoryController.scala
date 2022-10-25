@@ -12,11 +12,12 @@ import tasks.model.{Task, User}
 import doobie.implicits._
 import cats.syntax.traverse._
 import cats.syntax.either._
+import tasks.model.events.{TaskAssigned, TaskCompleted, TaskStreaming}
+import utils.KafkaEventProducer
 
 import java.util.{Date, UUID}
 
 trait TaskRepositoryController[F[_]] {
-
   def create(name: String, description: String)(
       user: User
   ): EitherT[F, CreateTaskError.type, Task]
@@ -32,8 +33,12 @@ trait TaskRepositoryController[F[_]] {
 
 object TaskRepositoryController {
 
-  class PostgresImpl(urc: UserRepositoryController[IO])
-      extends TaskRepositoryController[IO] {
+  class PostgresImpl(
+      urc: UserRepositoryController[IO],
+      taskStreamingEp: KafkaEventProducer[TaskStreaming],
+      taskAssignedEp: KafkaEventProducer[TaskAssigned],
+      taskCompletedEp: KafkaEventProducer[TaskCompleted]
+  ) extends TaskRepositoryController[IO] {
 
     val xa = Transactor.fromDriverManager[IO](
       "org.postgresql.Driver",
@@ -47,7 +52,7 @@ object TaskRepositoryController {
     ): EitherT[IO, CreateTaskError.type, Task] = {
 
       def assignedTask(assignee_id: String): Task = Task(
-        id = UUID.randomUUID().toString,
+        public_id = UUID.randomUUID().toString,
         name = name,
         description = description,
         assignee_id = assignee_id,
@@ -60,19 +65,30 @@ object TaskRepositoryController {
         user <- EitherT.fromOptionF(urc.getRandom().value, CreateTaskError)
         task = assignedTask(user.public_id)
         insert =
-          sql"""insert into tasks (id, name, description, assignee_id, created_by_id, created_at, completed) 
-              values (${task.id}, ${task.name}, ${task.description}, ${task.assignee_id}, 
+          sql"""insert into tasks (public_id, name, description, assignee_id, created_by_id, created_at, completed) 
+              values (${task.public_id}, ${task.name}, ${task.description}, ${task.assignee_id}, 
               ${task.created_by_id}, ${task.created_at}, ${task.completed})
            """.update.run.transact(xa)
         _ <- EitherT.liftF(insert)
+        stream = taskStreamingEp.send(
+          List(
+            TaskStreaming(
+              task.public_id,
+              task.name,
+              task.assignee_id,
+              new Date()
+            )
+          )
+        )
+        _ <- EitherT.liftF(stream)
       } yield task
     }
 
-    override def complete(task_id: String)(
+    override def complete(public_id: String)(
         auth: User
     ): EitherT[IO, CompleteTaskError.type, Unit] = {
       for {
-        task <- EitherT.fromOptionF(get(task_id).value, CompleteTaskError)
+        task <- EitherT.fromOptionF(get(public_id).value, CompleteTaskError)
         ee = {
           if (task.assignee_id == auth.public_id) ().asRight
           else CompleteTaskError.asLeft
@@ -80,10 +96,15 @@ object TaskRepositoryController {
         _ <- EitherT.fromEither[IO].apply(ee)
         _ <-
           EitherT.liftF {
-            sql"""update tasks set completed = true where id = $task_id""".update.run
+            sql"""update tasks set completed = true where public_id = $public_id""".update.run
               .transact(xa)
               .void
           }
+
+        stream = taskCompletedEp.send(
+          List(TaskCompleted(public_id, new Date()))
+        )
+        _ <- EitherT.liftF(stream)
       } yield ()
     }
 
@@ -114,9 +135,9 @@ object TaskRepositoryController {
       }
     }
 
-    override protected def get(task_id: String): OptionT[IO, Task] = {
+    override protected def get(public_id: String): OptionT[IO, Task] = {
       val r =
-        sql"""select id, name, description, assignee_id, created_by_id, created_at, completed from tasks where id = $task_id"""
+        sql"""select public_id, name, description, assignee_id, created_by_id, created_at, completed from tasks where id = $public_id"""
           .query[Task]
           .to[List]
           .transact(xa)
@@ -125,10 +146,15 @@ object TaskRepositoryController {
       OptionT(r)
     }
 
-    private def assign(task_id: String, user_id: String): IO[Unit] = {
-      sql"""update tasks set assignee_id = $user_id where id = $task_id""".update.run
-        .transact(xa)
-        .void
+    private def assign(public_id: String, user_id: String): IO[Unit] = {
+      val assignT =
+        sql"""update tasks set assignee_id = $user_id where public_id = $public_id""".update.run
+          .transact(xa)
+          .void
+
+      assignT >> taskAssignedEp.send(
+        List(TaskAssigned(public_id, user_id, new Date()))
+      )
     }
   }
 
